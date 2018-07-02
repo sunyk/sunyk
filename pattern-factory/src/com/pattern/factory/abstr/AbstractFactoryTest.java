@@ -1,0 +1,14 @@
+package com.pattern.factory.abstr;
+
+/**
+ * Create by sunyang on 2018/6/25 0:23
+ * For me:One handred lines of code every day,make myself stronger.
+ */
+public class AbstractFactoryTest {
+
+    public static void main(String[] args) {
+
+        MilkFactory factory = new MilkFactory();
+        System.out.println(factory.getMengniu());
+    }
+}
