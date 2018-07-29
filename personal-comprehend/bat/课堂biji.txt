@@ -1,0 +1,191 @@
+1.如何控制多线程执行顺序？
+通过join（），里面调用wait（）
+通过join方法去保证多线程的顺序性的特性
+join的作用：
+让主线等待子线程结束后，再执行主线程。
+
+另外一种方法线程池：
+ExcecutorService executorService = Executors.newSingleThreadExecutor();FIFO队列方式保证顺序
+
+2.java中的volatile和synchronized的区别
+首先了解JMM：Java Memory Model
+主要解决问题：并发过程中如何处理可见性、原子性、有序性的问题
+并发编程中的两个关键问题：
+a.线程之间如何通讯?（线程之间通过什么机制来交换）
+ a).共享内存 - 隐式通信
+ b).消息传递 - 显示通信 wait() notify notifyAll通过发送消息通信
+
+b.线程之间如何同步？
+在共享内存的并发模型中，同步是显式做的；synchronized
+在消息传递的并发模型中，由于消息的发送必须在消息接收之前，所以同步是隐式
+2.定位内存可见性问题
+什么对象是内存共享的，什么不是？
+Volatile、synchronized
+
+Volatile int i =0;
+1.对于声明了volatile的变量进行写操作的时候，JVM会向处理器发送一条Lock前缀
+的指令。会把这个变量所在的缓存行的数据写回到主存中去。
+2.在多处理器的情况下，保证各个处理器缓存一致性的特点，就会实现缓存一致性协议。
+
+
+synchronized：可重入锁、互斥性、可见性
+volatile：可以做到原子性、可见性；不能做到复合操作的原子性。
+举例说明：
+volatile int i;
+public void add（）{
+	i++;  //复合操作
+}
+
+
+synchronized的原理：
+会调用一个Monitor.enter获取锁，调用成功后，会获得者个对象object，最后就是monitor.exit,
+对于后续进来没获取到锁，会进到synchronizedQueue队列，当monitor.exit有一个通知，会让他
+出队列，下一个线程继续获取到锁。这就是synchronized的原理。
+
+volatile是实现可见性，synchronized是实现锁的机制。
+
+
+
+
+3.lock和synchronized的区别
+lock是java5以后出现的：位置java.until.concurrent.locks
+
+
+1.synchronized锁什么时候释放：
+	1.获取锁的线程执行完了该代码块
+	2.线程执行出现异常
+2.synchronized的缺陷
+  读和写，不能读加
+
+Lock可以主动去释放锁
+synchronized是被动
+
+ReadWriteLock
+readLock和writeLock
+Reentranlock 可重入锁； synchronized可重入锁
+可中断锁
+公平锁
+读写锁
+可重入的读写锁 ReentranLockReadWriteLock
+
+Lock是接口（是java语言实现），synchronized是关键字，（是内置语言实现）
+
+4.线程和进程的概念
+	1.继承Thread
+	2.实现runnable
+	3.ExecutorService
+	4.Callable Future带返回值的多线程操作
+
+	d多线程的生命周期：
+	创建，就绪，可运行，阻塞，结束
+	解释说明：
+	1.线程创建通过new Thread()，到初始化状态，通过t.start()到可运行状态，然后os调度选中到运行中，
+	同时运行中也可以通过yied()和时间片轮询来切换，到可运行；继续通过os调度选中到运行中，通过run结束或main结束到结束。
+	2.同时运行中又可以通过synchronized（）变成锁定状态，还有一个调用wait（）到等待队列，通过notify和notifyAll或wait时间执行完到锁定状态，然后拿到对象锁的标记monitor.entry，到可运行；
+	3.同时运行中，又有一种通过sleep（）和join（）到阻塞状态，通过sleep（）结束、join（）线程执行完，就到可运行。
+
+5.分布式锁
+
+分布式锁的设计；分布式锁几种方式；
+ 1.通过数据库的方式解决：
+create table lock（
+	id,
+	method_name,(唯一约束)
+	...
+）
+如果订单服务，结算服务，用户服务，同时往lock表里面，插入一条数据，只有一个节点返回是
+int类型是1，插入成功说明当前服务获得锁，才有资格对当前操作；其他没有获得锁等待，
+删除记录来释放锁。
+存在问题:
+删除失败怎么办，导致等待，程序不可用？
+每个节点搞个id，insert失败获取记录的id是当前的id，可重入锁。
+
+ 2.通过zookeeper来实现分布式锁，数据结构是以树形结构存储的数据，zookeeper的
+ 临时有序节点特点，每个服务节点往zk的locks节点下写一个临时有序节点，根据节点中最小的节点去判断你是否有权，意味了你优先写到节点上，优先获得锁，也是利用写机制，zookeeper优势，有一个watch机制，如果你这个节点失效，他会删除，你重新获取节点，进行操作。
+
+ 3.基于Redis  有一个命令setnx，只会在key不存在情况下，为key设置值，并且会返回0和1，如果setnx存入成功就返回1，谁先设置值就意味谁先获取锁，其他设置失败，其他等待释放锁，才能访问。
+
+6.两个Integer的引用对象传给一个swap方法在方法内部进行
+交换，返回后，两个引用的值是否会发生变化？
+ 1.自动装箱和拆箱
+ 2.Integer-128到127之间的缓存
+ 3.反射，通过反射去修改private final变量
+
+ 7.阻塞IO和非阻塞IO
+ 同步和异步：使用ajax是对操作请求
+ 同步阻塞
+ 同步非阻塞
+ 异步阻塞
+ 异步非阻塞
+8.mysql中的binlog
+记录MySQL的数据更新或者潜在更新；
+主从复制就是依靠binlog；
+master：负责写操作和更新操作
+slave：主要负责读操作
+binlog存储三种格式：
+statement 基于sql语句  记录当前执行这条sql
+row 基于行模式    记录变更的数据
+mixed 混合模式
+9.关于cookie和session的关联关系
+session是服务端保存信息
+cookie是客户端保存信息，包括key,value,过期时间、路径、域
+客户端访问服务端，服务端应用是部署在Tomcat服务器，客户端
+通过域名访问，通过DNS解析外网IP，通过外网IP服务转发
+对应服务器上，访问到对应Tomcat服务器的虚拟主机做处理；
+第一次请求过来，从客户端cookie带着JSESSIONID，如果不
+存在的话，会在Tomcat里面会创建一个jsessionid存到
+concurrentHashMap中，key就是id，value就是session的值
+服务端生成这个JSESSIONID会返回客户端，存到客户端
+cookie.jsessionid，对于下次请求会带一个jsessionid
+他会从服务端tomcat容器中concurrentHashMap找这个id，
+如果找不到就说明失效，过期又会重新生成，如果已经存在
+就直接返回对应的值。这样就完成用户信息保存。
+
+session共享
+session保存到Redis里面   jwt
+
+10.AOP的底层实现原理，动态代理的动如何体现？
+1、代理执行的人
+2、需要代理的人
+3、需要代理的事情是一定要做的，但是被代理人没有时间，
+自己做的不专业
+
+静态代理理解：A.class proxy.class只能代理a
+动态代理理解：proxy.class 可以代理b.class,c.class
+在运行时传进入对象的代理
+
+AOP：做一个代理是没有任何限制，只要是一个java类，
+他可以通过一个配置文件动态读取这个方法内容，这里
+要配合反射，然后最终通过字节码重组之后形成以个新的
+类，在内存调用是这个新的类的结果，原来的类只是一个
+模板式的存在，
+spring aop存在两种方式JDK proxy 要求被代理的类必须
+要实现InvokcationHandler这个接口
+Cglib 是通过生成一个动态类，然后把这个动态类作为
+子类继承我们自己写的那个模板类，因为子类拥有了父类的
+引用达到动态的效果。
+
+11.Javaweb开发中解决跨域问题的N种方案
+ 1、设置document.domain(一级域名相同的情况下），
+ 提供者和页面
+ 2、HTML标签中src属性，只支持get请求、允许跨域的
+ 3、<script src="">JSONP格式eval
+ 4、ifream之间交互window.postMessage方法（字符串255个）
+ 5、服务器后台做文章，CORS （安全沙箱）
+    Access-Control-Allow-Origin:*;
+ 12.从数据库底层来分析事物的提交与回滚过程
+ 事物发生只会在数据库增删改，查询不会有事物
+ 1、当对数据库进行插入操作，以id为主键，数据库里面已经有
+ 一条id是1的记录，再次插入就会报数据库约束冲突。
+ 在数据库中在创建一个临时表tmp表，先从原始表中查出这条
+ 记录，这时插入记录在临时表中，两条记录一样的数据，一条
+ 是old，是一条是insert，在数据库程序会对临时表进行判断，
+ 会报主键唯一约束冲突，同时删除这个临时表，此次事务完成。
+ 2、更新一条记录，把这条记录查出来，把新修改记录都放入临时
+ 表中，一条是old，一条是update，检查是否有冲突，如果是修改
+ 把这个值换成新的值，没有冲突，会把临时表中这条记录，把要
+ 修改字段替换成表中的字段，然后删除临时表。
+ 3、删除一条记录，也是在临时表找出old和要删除记录，检查是否
+ 有冲突，没有的话就对表中这个主键的数据进行删除，同时删除
+ 临时表。
+ 数据库的事务提交和回滚就是对临时表中的操作。

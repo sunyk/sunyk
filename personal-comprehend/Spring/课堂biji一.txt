@@ -1,0 +1,26 @@
+IOC容器初始化过程总结：
+1、定位：资源配置import、classpath、URL
+2、加载：解析配置文件，把bean包装成beandefinition对象
+3、注册：把已经初始化的beandefinition对象放入到IOC容器之中。
+
+依赖注入阶段：从abstractBeanFactory的getBean（）
+spring中的对象，默认是单里的，scope  single
+spring中的对象init-lazy默认是false
+
+BeanDefinition相当于是保存在内存中的配置文件，保存了所有的跟类
+属性相关信息
+依赖注入，就是把beandefinition中的信息读取出来，利用反射机制，
+或者代理机制创建对象，新创建的对象，不会放到我们印象中的IOC容器
+中，他存在到另外一个cache容器。
+
+
+包装器模式：减少代码侵入，能够在原生的基础之上，再进行扩展，监听器，
+回调函数，标记信息
+
+beanfactory：主要是factory顶层接口
+			具体工厂会通过策略模式去实现，不同的工厂生产不同的产品
+FactoryBean：主要是bean，所有的工厂生产的产品都是实现此接口
+			简言之，beanfactory生出来的产品都是factorybean
+大部分情况下beanfactory本身也是通过beanfactory创建的
+也就是beanfactory也是一个factorybean
+可以使用转义字符“&”来得到factorybean
