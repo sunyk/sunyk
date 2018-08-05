@@ -532,6 +532,15 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         }
     }
 
+    /**
+     * AQS内部维护了一个以Node为节点实现的链表的队列
+     *
+     *           +--------+    prev  +------+        +------+
+     *      head |        |   <-----|       | <------|      |   tail
+     *           +--------+         +-------+        +------+
+     *
+     */
+
     //TODO 静态内部类Node-----
     static final class Node{
         //共享
@@ -594,12 +603,18 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
 
         private static final long serialVersionUID = 2569938640590784418L;
         //第一个条件队列的节点
-        private transient Node firstWaiter;
+        private transient Node firstWaiter;//条件队列的头节点
         //最后一个条件队列的节点
-        private transient Node lastWaiter;
+        private transient Node lastWaiter;//条件队列的尾节点
 
         public ConditionObject() {
         }
+
+        /**
+         *  添加一个新节点到条件队列
+         *             可以看到，在修改队列节点结构时候并没有使用CAS，这是因为通常使用condition的前提必须是在独占模式的lock下
+         * @return
+         */
         //添加一个条件等待队列
         private Node addConditionWaiter(){
             Node t = lastWaiter;
@@ -618,6 +633,12 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
             return node;
         }
 
+        /**
+         * 持有锁的情况下，从condition等待队列中分离已被取消的节点。
+         *             该方法只有在条件队列中发生节点取消或者添加一个新的节点的时候发现尾节点已被取消时调用。
+         *             该方法需要避免垃圾滞留（没有signal时候），所以即使它需要完整遍历，但也只有在在由于没有signal
+         *             而导致的超时或者取消时才起作用。
+         */
         private void unlinkCancelledWaiters(){
             Node t = firstWaiter;
             Node trail = null;
@@ -653,16 +674,21 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         public void await() throws InterruptedException {
             if (Thread.interrupted())
                 throw new InterruptedException();
+            // 添加一个新节点到等待队列
             Node node = addConditionWaiter();
+            //释放当前所有state。因为其他线程需要lock,后面还会恢复
             int saveState = fullyRelease(node);
             int interruptMode = 0;
+            //判断当前节点是否已被释放（从等待队列转移到同步队列）
             while (!isOnSyncQueue(node)){
                 LockSupport.park(this);
                 if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
                     break;
             }
+            //调用acquireQueued使节点node从AQS同步队列出队
             if (acquireQueued(node, saveState) && interruptMode != THROW_IE)
                 interruptMode = REINTERRUPT;
+            //  如果存在后继节点，则检查且清理取消节点。
             if (node.nextWaiter != null)
                 unlinkCancelledWaiters();
             if (interruptMode != 0)
@@ -670,6 +696,7 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         }
 
         /**
+         * 根据mode来决定是否抛出InterruptedException异常或者，或者不执行任何动作。
          * 抛出中断，重新中断当前线程，或者
          *         什么都不做，取决于模式。
          * @param interruptMode
@@ -692,16 +719,32 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
          * 通过调用专业版的
          * @link以保存的状态作为参数。
          */
+        /**
+         * 不抛出线程中断异常的的条件等待的实现.
+         *             保存getState方法返回的状态值，且调用release释放getState方法返回的状态值。
+         *             为什么要释放所有的getState的状态值？
+         *             试下Condition的await方法功能是类似于Object的await方法，Object的await方法
+         *             在调用时候需要进行该Object的同步（Synchronized）。所以Condition的await在
+         *             被调用时候也需要拥有独占锁（Lock.lock）。
+         *             如果 线程1 await后不释放AQS的state，那么 线程2 在signal时候无法获取锁。
+         *
+         *            如果release失败，则抛出异常 IllegalMonitorStateException
+         *
+         *             接着会调用LockSupport.park(this);阻塞当前线程，直到该线程被唤醒
+         */
         @Override
         public final void awaitUnInterrupted() {
             Node node = addConditionWaiter();
             int saveState = fullyRelease(node);
             boolean interrupted = false;
+            //线程被唤醒后需要判断当前节点是否在同步队列（因为调用signal唤醒，会把头节点从等待队列转移到AQS的同步队列 ）
             while (!isOnSyncQueue(node)){
                 LockSupport.park(this);
                 if (Thread.interrupted())
                     interrupted = true;
             }
+            //这里注意acquireQueued带有一个形参savedState。至于为什么要把这个savedState传入，
+            //想想之前释放掉的savedState就明白了
             if (acquireQueued(node,saveState) || interrupted)
                 Thread.currentThread().interrupt();
         }
@@ -721,6 +764,8 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
          * @return
          * @throws InterruptedException
          */
+        //指定一个相对时间，如果在相对时间内被唤醒且检查是否满足不再阻塞线程条件，否知阻塞直至到达过期时间，
+        //释放当前线程
         @Override
         public final long awaitNanos(long nanosTimeOut) throws InterruptedException {
             if (Thread.interrupted())
@@ -734,10 +779,12 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
                     transferAfterCancelledWait(node);
                     break;
                 }
+                //这里和上面普通。只挂起线程nanosTimeout纳秒
                 LockSupport.parkNanos(this, nanosTimeOut);
                 if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
                     break;
                 long now = System.nanoTime();
+                //注意这里运算符德优先级关系
                 nanosTimeOut -= now - lastTime;
                 lastTime = now;
             }
@@ -815,6 +862,8 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
          * @param dealDate
          * @return
          */
+        //指定一个绝对时间，如果在绝对时间之前被唤醒，则线程检查是否满足完成阻塞，是则推出阻塞。
+        //否则继续阻塞直至到达绝对时间，然后才中断阻塞
         @Override
         public boolean awaitUntil(Date dealDate) throws InterruptedException {
             if (dealDate == null)
@@ -849,6 +898,9 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         /**
          * 移动最长等待的线程，如果存在的话，从等待队列等待队列的等待队列拥有锁。
          */
+        /**
+         * 在独占锁模式下，删除当前Condition中的等待队列的头节点.
+         */
         @Override
         public final void singal() {
             if (!isHeldExclusively()){
@@ -856,9 +908,21 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
             }
             Node first = firstWaiter;
             if (first != null)
+            /**
+             * 删除当前Condition中的等待队列的头节点，且转移头节点到AQS的同步等待队列中
+             *                 注意：仅仅只是删除头节点,并没有唤醒任何节点！
+             *                 那么疑问来了，为什么signal不唤醒节点却能达到Object的signal一样的效果呢？(头)
+             *                 单纯的从这一步解释的通，因为signal代表着唤醒线程。AQS利用signal必须得持有独占锁，
+             *                 在unlock时候实际上就是唤醒await节点。而这里的signal仅仅只是移除等待队列的头部
+             */
                 doSignal(first);
         }
 
+        /**
+         *  删除condition等待队列中的节点first,且把节点first转移到condition所属的AQS等待队列中，
+         *             直到成功。
+         * @param first
+         */
         //删除和传输节点，直到未被取消的节点
         private void doSignal(Node first){
             do {
@@ -869,8 +933,13 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         }
 
         //将所有线程从等待队列中移动到这个条件拥有锁的等待队列。
+
+        /**
+         * 在当前线程拥有独占锁的情况下，删除当前condition 中等待队列的所有线程
+         */
         @Override
         public void singalAll() {
+            //判断是否拥有独占锁
             if (!isHeldExclusively())
                 throw new IllegalMonitorStateException();
             Node first = firstWaiter;
@@ -878,6 +947,10 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
                 doSignalAll(first);
         }
 
+        /**
+         * 转移且删除所有的节点
+         * @param first
+         */
         //删除并传输所有节点。
         private void doSignalAll(Node first){
             lastWaiter = firstWaiter = null;
@@ -890,6 +963,7 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         }
 
         //返回等待线程的集合
+        //获取当前等待队列里节点里的处于有效等待唤醒状态的线程的集合
         protected final Collection<Thread> getWaitingThreads(){
             if (!isHeldExclusively())
                 throw new IllegalMonitorStateException();
@@ -905,6 +979,7 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         }
 
         //返回等待的线程数量的估计
+        //获取当前等待队列里节点数的估计值
         protected final int getWaitQueueLength(){
             if (!isHeldExclusively())
                 throw new IllegalMonitorStateException();
@@ -917,6 +992,7 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         }
 
         //询问是否有线程在等待这个条件。
+        //查询当前等待队列是否存在 有效等待(waitStatus 值为CONDITION)的线程
         protected final boolean hasWaiters(){
             if (!isHeldExclusively())
                 throw new IllegalMonitorStateException();
@@ -928,6 +1004,7 @@ public class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer impl
         }
 
         //如果这个条件是由给定的条件创建的同步对象
+        //判断sync是否和和当前的调用的this是同一个。追踪下AQS的owns(ConditionObject condition)就明白了
         final boolean isOwnedBy(AbstractQueuedSynchronizer sync){
             return sync == AbstractQueuedSynchronizer.this;
         }

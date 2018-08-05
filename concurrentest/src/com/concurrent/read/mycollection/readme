@@ -1,0 +1,12 @@
+1.List 和 Set 区别
+2.List 和 Map 区别
+3.Arraylist 与 LinkedList 区别
+4.ArrayList 与 Vector 区别
+5.HashMap 和 Hashtable 的区别
+6.HashSet 和 HashMap 区别
+7.HashMap 和 ConcurrentHashMap 的区别
+8.HashMap 的工作原理及代码实现
+9.ConcurrentHashMap 的工作原理及代码实现
+
+
+如果在编程中，4、5两种情形交替出现,这时,你可以考虑使用List这样的通用接口,而不用关心具体的实现，在具体的情形下,它的性能由具体的实现来保证。

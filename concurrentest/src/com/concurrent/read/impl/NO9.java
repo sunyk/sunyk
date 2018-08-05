@@ -9,7 +9,8 @@ import java.util.concurrent.*;
 public class NO9 {
     /**
      * 1.线程池是什么
-     * java.util.concurrent.Executors提供了一个java.util.concurrent.Executor接口的实现用于创建线程池多线程技术主要解决处理器单元内多个线程执行的问题，他可以显著减少处理器
+     * java.util.concurrent.Executors提供了一个java.util.concurrent.Executor接口的实现用于创建线程池
+     * 多线程技术主要解决处理器单元内多个线程执行的问题，他可以显著减少处理器
      * 单元的闲置时间，增加处理器单元的吞吐能力.
      * 一个线程池包括四个基本组成部分：
      * 1、线程池管理器ThreadPool

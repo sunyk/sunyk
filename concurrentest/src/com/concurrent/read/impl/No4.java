@@ -56,9 +56,7 @@ public class No4 {
                 System.out.println("Thread" + finalI +"到达");
                 try {
                     cyclicBarrier.await();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (BrokenBarrierException e) {
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
                 System.out.println("thread " + finalI + "to contine");

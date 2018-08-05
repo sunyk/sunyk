@@ -1,4 +1,4 @@
-package concurrent.read.impl;
+package com.concurrent.read.impl;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
@@ -82,6 +82,7 @@ public class No1{
                     return 5;
                 }
         );
+
         FutureTask<Object> task = new FutureTask<Object>(
                 (Callable<Object>)()->{
                     Integer object = new Integer("125");
