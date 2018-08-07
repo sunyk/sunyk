@@ -1,0 +1,84 @@
+﻿redis的优势：
+
+一：存储结构：
+1.字符类型
+2.散列类型
+3.列表类型
+4.集合类型
+5.有序类型
+
+二：功能？
+1.可以为每个key设置超时时间；
+2.可以通过列表类型来实现分布式队列的操作；
+3.支持发布订阅的消息模式；
+
+三：
+1.字符类型使用：一个字符类型的key默认存储的最大容量是512M，SET key value;GET key; incr key递增数字
+2.列表类型使用：list，可以存储一个有序的字符串列表
+LPUSH/RPUSH:从左边或者右边push数据
+LPUSH/RPUSH key value value ---
+3.散列类型使用：
+hash key value 不支持数据类型的嵌套
+比较适合存储对象
+4.集合类型使用：set跟list不一样的点。集合类型不能存在重复的数据，并且是无序的；
+sadd key member[member...]
+srem key member
+smembers key
+5.有序集合
+zadd key score member
+zrange key start stop[withscores]去获得元素。网站访问的前10名。
+
+四：Redis的事务处理
+MULTI 去开启事务
+EXEC 去执行事务
+
+五：过期时间
+expire key seconds;
+ttl 获得key的过期时间；
+
+六：发布订阅
+publish channel message
+subscribe channel
+
+Redis实现分布式锁实现
+首先，理解下锁是用来解决什么问题的：
+1.一个进程中的多个线程，多个线程并发访问同一个资源的时候，如何解决线程安全问题。
+2.一个分布式架构系统中的两个模块同时去访问一个文件对文件进行读写操作。
+3.多个应用对同一条数据做修改的时候，如何保证数据的安全性。
+在单进程中，我们可以用到synchronized、lock之类的同步操作去解决，但是对于
+分布式架构下多进程的情况下，如何做到跨进程的锁。就需要借助第三方手段来完成；
+设计一个分布式所需要解决的问题
+分布式锁的解决方案
+1.怎么去获取锁
+数据库，通过唯一约束
+lock（
+  id int（11），
+  methodName varchar(100),
+  memo varchar(1000),
+  modifyTime timestamp,
+  unique key mn(method) --唯一约束
+
+）
+获取锁的伪代码
+try{
+	exec insert into lock（methodName，memo）values（‘method’，‘desc’）；--method唯一约束
+	return true;
+}cactch(e){
+	retrun false;
+}
+释放锁
+delete from lock where methodName = "";
+2.zookeeper实现分布式锁
+利用zookeeper的唯一节点特性或者有序临时节点特性获得最小节点作为锁
+
+zookeeper的优势：
+可靠性高、实现简单；
+zookeeper因为临时节点的特性，如果因为其他客户端由于异常和zookeeper连接中断，那么节点会被删除，意味着锁会被自动释放；
+zookeeper本身提供了一套很好的集群方案，比较稳定；
+释放锁操作，会有watch通知机制，也就是服务器端会主动发送消息给客户端这个锁也就被释放了
+
+3.基于缓存的分布式锁实现
+Redis中有一个命令setNx，这个命令只有在key不存在的情况下为key设置值。所以可以利用这个特性来实现分布式锁的操作。
+具体实现
+添加Redis.clients，jedis，pom.xml
+
